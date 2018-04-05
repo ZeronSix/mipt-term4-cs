@@ -1,13 +1,13 @@
 TARGET = integral
 CC = gcc
-CFLAGS = -Wall -pedantic -MD
+CFLAGS = -Wall -pedantic -MD -std=gnu99
 LDFLAGS = -pthread
 
 .PHONY: all clean
 
 all: $(TARGET)
 
-$(TARGET): integral.o
+$(TARGET): integral.o cpuinfo.o
 	$(CC) $^ -o $(TARGET) $(LDFLAGS)
 
 %.o: %.c
