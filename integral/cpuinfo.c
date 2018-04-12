@@ -11,41 +11,51 @@ typedef struct PhysicalCore {
 } PhysicalCore;
 
 static PhysicalCore cores[MAX_CORES] = {0};
-static size_t cur_physical = 0;
-static size_t core_count = 0;
+static size_t logical_cores = 0;
+static size_t physical_cores = 0;
 
 void cpuinfo_parse(void) {
-    FILE *f = popen("awk -F': ' '$1 ~ /^(core id)/||/(^processor)/"
-                    "{print $2}' /proc/cpuinfo", "r");
+    FILE *f = popen("cat /proc/cpuinfo | egrep 'core id|physical id' | tr -d '\\n' | sed s/physical/\\\\nphysical/g | grep -v ^$ | sort | uniq | wc -l", "r");
     if (!f) {
         perror("popen");
         exit(EXIT_FAILURE);
     }
 
-    int processor = 0;
-    int coreid = 0;
-    while (fscanf(f, "%d %d", &processor, &coreid) == 2) {
-        if (coreid + 1 > core_count) {
-            core_count = coreid + 1;
-        }
-        if (core_count > MAX_CORES) {
-            fprintf(stderr, "Too much logical cores!\n");
-            exit(EXIT_FAILURE);
-        }
+    if (fscanf(f, "%lu", &physical_cores) != 1) {
+        fprintf(stderr, "fscanf error\n");
+        exit(EXIT_FAILURE);
+    }
+    fclose(f);
 
-        cores[coreid].logical_cores[cores[coreid].logical_count] = processor;
-        cores[coreid].logical_count++;
+    f = popen("grep -c processor /proc/cpuinfo", "r");
+    if (!f) {
+        perror("popen");
+        exit(EXIT_FAILURE);
     }
 
+    if (fscanf(f, "%lu", &logical_cores) != 1) {
+        fprintf(stderr, "fscanf error\n");
+        exit(EXIT_FAILURE);
+    }
     fclose(f);
+
+    f = popen("lscpu -p=cpu,core | grep -v ^#", "r");
+    int cpu = 0;
+    int coreid = 0;
+    while (fscanf(f, "%d,%d", &cpu, &coreid) == 2) {
+        cores[coreid].logical_cores[cores[coreid].logical_count] = cpu;
+        cores[coreid].logical_count++;
+    }
 }
 
-int cpuinfo_getnextcpu(void) {
-    size_t cur_logical = cores[cur_physical].cur_logical;
-    int processor = cores[cur_physical].logical_cores[cur_logical];
-    cores[cur_physical].cur_logical = (cur_logical + 1) % cores[cur_physical].logical_count;
-    cur_physical = (cur_physical + 1) % core_count;
+size_t cpuinfo_getphysicalcores(void) {
+    return physical_cores;
+}
 
-    // printf("The next processor is %d\n", processor);
-    return processor;
+size_t cpuinfo_getlogicalcores(int coreid) {
+    return cores[coreid].logical_count;
+}
+
+size_t cpuinfo_getlogicalcoreid(int coreid, int n) {
+    return cores[coreid].logical_cores[n];
 }
