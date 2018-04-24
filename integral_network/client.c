@@ -6,11 +6,15 @@
 #include <sys/fcntl.h>
 #include <sys/select.h>
 #include <netinet/in.h>
+#include <ifaddrs.h>
 #include <unistd.h>
 #include <errno.h>
 #include <pthread.h>
+#include <netdb.h>
+#include <linux/if_link.h>
+#include <sys/ioctl.h>
+#include <net/if.h>
 #include "common.h"
-#include "list.h"
 
 static int parse_arg(const char *str, long *ptr);
 static int setfd_nonblock(int fd);
@@ -38,7 +42,7 @@ int main(int argc, char *argv[])
 
     if (argc != 2)
     {
-        fprintf(stderr, "Usage: client [worker count]\n");
+        fprintf(stderr, "Usage: client [worker_count interface]\n");
         return EXIT_FAILURE;
     }
 
@@ -80,6 +84,16 @@ int main(int argc, char *argv[])
         perror("socket");
         retval = EXIT_FAILURE;
         goto CLOSE_BROADCASTFD;
+    }
+
+    struct timeval tv;
+    tv.tv_sec = CLIENT_DATA_RECEIVE_TIMEOUT;        // 30 Secs Timeout
+    tv.tv_usec = 0;        // Not init'ing this can cause strange errors
+    if (setsockopt(sockfd, SOL_SOCKET, SO_RCVTIMEO, (const char*)&tv, sizeof(tv)) < 0)
+    {
+        perror("setsockopt SO_RCVTIMEO");
+        retval = EXIT_FAILURE;
+        goto CLOSE_SOCKFD;
     }
 
     if (setfd_nonblock(sockfd) < 0)
@@ -221,19 +235,43 @@ int bind_socket(int fd)
 
 int broadcast(int broadcastfd)
 {
-    struct sockaddr_in addr;
-    addr.sin_family = AF_INET;
-    addr.sin_port = htons(PORT);
-    addr.sin_addr.s_addr = htonl(INADDR_BROADCAST);
+    struct ifaddrs *ifaddr = NULL, *ifa = NULL;
+    int retval = 0;
 
-    int result = sendto(broadcastfd, MSG_BROADCAST, sizeof(MSG_BROADCAST), 0,
-                        (struct sockaddr *)&addr, sizeof(addr));
-    if (result < 0)
+    if (getifaddrs(&ifaddr) == -1)
     {
-        perror("sendto");
+        perror("getifaddrs");
+        retval = -1;
+        goto RETURN;
     }
 
-    return result;
+    for (ifa = ifaddr; ifa != NULL; ifa = ifa->ifa_next)
+    {
+        if (ifa->ifa_addr == NULL)
+            continue;
+        if (ifa->ifa_addr->sa_family != AF_INET)
+            continue;
+        if (!(ifa->ifa_flags & IFF_BROADCAST))
+            continue;
+
+        printf("Broadcasting on %-8s...\n", ifa->ifa_name);
+
+        struct sockaddr_in *addr = (struct sockaddr_in *)ifa->ifa_broadaddr;
+        addr->sin_port = htons(PORT);
+        int result = sendto(broadcastfd, MSG_BROADCAST, sizeof(MSG_BROADCAST), 0,
+                            (struct sockaddr *)addr, sizeof(*addr));
+        if (result < 0)
+        {
+            perror("sendto");
+            retval = -1;
+            goto FREEIFADDRS;
+        }
+    }
+
+FREEIFADDRS:
+    freeifaddrs(ifaddr);
+RETURN:
+    return retval;
 }
 
 int server_handshake(int sockfd)
@@ -277,6 +315,7 @@ static void *thread_routine(void *data)
     }
 
     int serverfd = 0;
+    // TODO: move to another function?
     while (1)
     {
         // TODO: do something with unlocking
@@ -333,6 +372,26 @@ static void *thread_routine(void *data)
             close(serverfd);
             continue;
         }
+
+        /*
+        FD_ZERO(&readset);
+        FD_SET(serverfd, &readset);
+        tv.tv_sec = CLIENT_DATA_RECEIVE_TIMEOUT;
+        tv.tv_usec = 0;
+        // TODO: fix
+        int s = select(serverfd + 1, &readset, NULL, NULL, &tv);
+        if (s == 0)
+        {
+            puts("Lost connection!");
+            close(serverfd);
+            continue;
+        }
+        else if (s < 0)
+        {
+            perror("select");
+            close(serverfd);
+            continue;
+        } */
 
         double value;
         ssize_t bytesread = read(serverfd, (char *)&value, sizeof(value));

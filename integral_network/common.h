@@ -2,12 +2,13 @@
 #define COMMON_H
 
 #define PORT 1234
-#define TOTAL_SUBINTERVALS (600 * 300000L)
+#define TOTAL_SUBINTERVALS (5000 * 300000L)
 #define START 0.0
 #define END 10.0
 #define STEP ((END - START) / TOTAL_SUBINTERVALS)
 
 #define CLIENT_BROADCAST_TIMEOUT 1
+#define CLIENT_DATA_RECEIVE_TIMEOUT 60
 
 typedef struct Data
 {

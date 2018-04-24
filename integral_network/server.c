@@ -3,6 +3,7 @@
 #include <unistd.h>
 #include <sys/types.h>
 #include <sys/socket.h>
+#include <sys/select.h>
 #include <netinet/in.h>
 #include <string.h>
 #include "common.h"
@@ -116,6 +117,16 @@ int handshake(int broadcastfd)
         return -1;
     }
 
+    struct timeval tv;
+    tv.tv_sec = CLIENT_DATA_RECEIVE_TIMEOUT;        // 30 Secs Timeout
+    tv.tv_usec = 0;        // Not init'ing this can cause strange errors
+    if (setsockopt(sockfd, SOL_SOCKET, SO_RCVTIMEO, (const char*)&tv, sizeof(tv)) < 0)
+    {
+        perror("setsockopt SO_RCVTIMEO");
+        close(sockfd);
+        return -1;
+    }
+
     from.sin_port = htons(PORT);
     puts("Connecting...");
     if (connect(sockfd, (struct sockaddr *)&from, sizeof(from)) < 0)
@@ -152,6 +163,7 @@ double calculate(long start_subint, long subintervals)
 {
     double start = START + STEP * start_subint;
     double end = START + STEP * (start_subint + subintervals);
+    printf("%lg %lg\n", start, end);
 
     double value = (f(start) + f(end)) / 2;
     for (long i = 1; i < subintervals; i++)
