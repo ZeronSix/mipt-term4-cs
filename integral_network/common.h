@@ -6,6 +6,8 @@
 #define START 0.0
 #define END 10.0
 #define STEP ((END - START) / TOTAL_SUBINTERVALS)
+#define MAX(x, y) (((x) > (y)) ? (x) : (y))
+#define MIN(x, y) (((x) < (y)) ? (x) : (y))
 
 #define CLIENT_BROADCAST_TIMEOUT 1
 #define CLIENT_DATA_RECEIVE_TIMEOUT 60
@@ -36,5 +38,9 @@ typedef struct Data
 
 static const char MSG_BROADCAST[] = "HI";
 static const char MSG_RESPONSE[] = "OH HI";
+
+int parse_arg(const char *str, long *ptr);
+int setfd_nonblock(int fd);
+int setfd_block(int fd);
 
 #endif /* ifndef COMMON_H */

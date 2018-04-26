@@ -8,11 +8,11 @@ LDFLAGS = -pthread
 
 all: $(TARGET_CLIENT) $(TARGET_SERVER)
 
-$(TARGET_CLIENT): client.o 
+$(TARGET_CLIENT): client.o common.o
 	$(CC) $^ -o $(TARGET_CLIENT) $(LDFLAGS)
 
-$(TARGET_SERVER): server.o 
-	$(CC) $^ -o $(TARGET_SERVER)
+$(TARGET_SERVER): server.o common.o cpuinfo.o
+	$(CC) $^ -o $(TARGET_SERVER) $(LDFLAGS)
 
 %.o: %.c
 	$(CC) $(CFLAGS) -o $@ -c $<

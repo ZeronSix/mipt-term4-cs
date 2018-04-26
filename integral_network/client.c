@@ -16,9 +16,6 @@
 #include <net/if.h>
 #include "common.h"
 
-static int parse_arg(const char *str, long *ptr);
-static int setfd_nonblock(int fd);
-static int setfd_block(int fd);
 static int bind_socket(int fd);
 static int broadcast(int broadcastfd);
 static int server_handshake(int sockfd);
@@ -42,7 +39,7 @@ int main(int argc, char *argv[])
 
     if (argc != 2)
     {
-        fprintf(stderr, "Usage: client [worker_count interface]\n");
+        fprintf(stderr, "Usage: client [worker_count]\n");
         return EXIT_FAILURE;
     }
 
@@ -87,8 +84,8 @@ int main(int argc, char *argv[])
     }
 
     struct timeval tv;
-    tv.tv_sec = CLIENT_DATA_RECEIVE_TIMEOUT;        // 30 Secs Timeout
-    tv.tv_usec = 0;        // Not init'ing this can cause strange errors
+    tv.tv_sec = CLIENT_DATA_RECEIVE_TIMEOUT;
+    tv.tv_usec = 0;
     if (setsockopt(sockfd, SOL_SOCKET, SO_RCVTIMEO, (const char*)&tv, sizeof(tv)) < 0)
     {
         perror("setsockopt SO_RCVTIMEO");
@@ -131,13 +128,16 @@ int main(int argc, char *argv[])
     }
 
     double value = 0;
-    for (long i = 0; i < n; i++) {
-        if (pthread_join(threads[i], NULL) != 0) {
+    for (long i = 0; i < n; i++)
+    {
+        if (pthread_join(threads[i], NULL) != 0)
+        {
             perror("pthread_join");
             goto CLOSE_SOCKFD;
         }
         value += threadargs[i].result;
     }
+
     printf("\nResult value: %lg\n", value);
 
 CLOSE_SOCKFD:
@@ -146,69 +146,6 @@ CLOSE_BROADCASTFD:
     close(broadcastfd);
 RETURN:
     return retval;
-}
-
-int parse_arg(const char *str, long *ptr)
-{
-    long n = 0;
-    char *endptr = NULL;
-    errno = 0;
-    n = strtol(str, &endptr, 10);
-
-    if (errno != 0)
-    {
-        perror("strtol");
-        return -1;
-    }
-    if (*endptr != '\0')
-    {
-        fprintf(stderr, "further chars!\n");
-        return -1;
-    }
-    if (n < 1)
-    {
-        fprintf(stderr, "n < 1!\n");
-        return -1;
-    }
-
-    *ptr = n;
-    return 0;
-}
-
-int setfd_nonblock(int fd)
-{
-    int flags = fcntl(fd, F_GETFL);
-    if (flags < 0)
-    {
-        perror("fcntl");
-        return -1;
-    }
-    flags |= O_NONBLOCK;
-    if (fcntl(fd, F_SETFL, flags) < 0)
-    {
-        perror("fcntl");
-        return -1;
-    }
-
-    return 0;
-}
-
-int setfd_block(int fd)
-{
-    int flags = fcntl(fd, F_GETFL);
-    if (flags < 0)
-    {
-        perror("fcntl");
-        return -1;
-    }
-    flags &= !O_NONBLOCK;
-    if (fcntl(fd, F_SETFL, flags) < 0)
-    {
-        perror("fcntl");
-        return -1;
-    }
-
-    return 0;
 }
 
 int bind_socket(int fd)
@@ -372,26 +309,6 @@ static void *thread_routine(void *data)
             close(serverfd);
             continue;
         }
-
-        /*
-        FD_ZERO(&readset);
-        FD_SET(serverfd, &readset);
-        tv.tv_sec = CLIENT_DATA_RECEIVE_TIMEOUT;
-        tv.tv_usec = 0;
-        // TODO: fix
-        int s = select(serverfd + 1, &readset, NULL, NULL, &tv);
-        if (s == 0)
-        {
-            puts("Lost connection!");
-            close(serverfd);
-            continue;
-        }
-        else if (s < 0)
-        {
-            perror("select");
-            close(serverfd);
-            continue;
-        } */
 
         double value;
         ssize_t bytesread = read(serverfd, (char *)&value, sizeof(value));
