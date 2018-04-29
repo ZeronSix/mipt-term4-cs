@@ -14,6 +14,7 @@
 #include <linux/if_link.h>
 #include <sys/ioctl.h>
 #include <net/if.h>
+#include <netinet/tcp.h>
 #include "common.h"
 
 static int bind_socket(int fd);
@@ -83,6 +84,14 @@ int main(int argc, char *argv[])
         goto CLOSE_BROADCASTFD;
     }
 
+    if (setsockopt(sockfd, SOL_SOCKET, SO_REUSEADDR, &on, sizeof(on)) < 0)
+    {
+        perror("setsockopt");
+        retval = EXIT_FAILURE;
+        goto CLOSE_SOCKFD;
+    }
+
+    /*
     struct timeval tv;
     tv.tv_sec = CLIENT_DATA_RECEIVE_TIMEOUT;
     tv.tv_usec = 0;
@@ -91,7 +100,7 @@ int main(int argc, char *argv[])
         perror("setsockopt SO_RCVTIMEO");
         retval = EXIT_FAILURE;
         goto CLOSE_SOCKFD;
-    }
+    } */
 
     if (setfd_nonblock(sockfd) < 0)
     {
@@ -228,6 +237,19 @@ int server_handshake(int sockfd)
         return -1;
     }
 
+    int keepalive = 1;
+    if (setsockopt(fd, SOL_SOCKET, SO_KEEPALIVE, &keepalive, sizeof(keepalive)) < 0)
+    {
+        perror("setsockopt");
+        close(fd);
+        return -1;
+    }
+
+    int keepcnt = 5, keepidle = 5, keepintvl = 1;
+    setsockopt(fd, IPPROTO_TCP, TCP_KEEPCNT, &keepcnt, sizeof(int));
+    setsockopt(fd, IPPROTO_TCP, TCP_KEEPIDLE, &keepidle, sizeof(int));
+    setsockopt(fd, IPPROTO_TCP, TCP_KEEPINTVL, &keepintvl, sizeof(int));
+
     return (strcmp(MSG_RESPONSE, buf) == 0) ? fd : -1;
 }
 
@@ -264,8 +286,8 @@ static void *thread_routine(void *data)
         puts("Accepting connection...");
 
         struct timeval tv;
-        tv.tv_sec = CLIENT_BROADCAST_TIMEOUT;
-        tv.tv_usec = 0;
+        tv.tv_sec = 0;
+        tv.tv_usec = CLIENT_BROADCAST_TIMEOUT_US;
 
         int selres = select(sockfd + 1, &readset,
                             NULL, NULL, &tv);

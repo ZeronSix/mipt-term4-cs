@@ -9,8 +9,8 @@
 #define MAX(x, y) (((x) > (y)) ? (x) : (y))
 #define MIN(x, y) (((x) < (y)) ? (x) : (y))
 
-#define CLIENT_BROADCAST_TIMEOUT 1
-#define CLIENT_DATA_RECEIVE_TIMEOUT 60
+#define CLIENT_BROADCAST_TIMEOUT_US 1000
+#define CLIENT_DATA_RECEIVE_TIMEOUT 5
 
 typedef struct Data
 {
