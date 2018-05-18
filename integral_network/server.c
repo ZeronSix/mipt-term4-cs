@@ -9,6 +9,8 @@
 #include <string.h>
 #include <pthread.h>
 #include <sched.h>
+#include <net/if.h>
+#include <netinet/tcp.h>
 #include "common.h"
 #include "cpuinfo.h"
 
@@ -219,11 +221,13 @@ void server_routine(int broadcastfd)
     if (bytessent < 0)
     {
         perror("bytessent");
+        exit(EXIT_FAILURE);
         goto CLOSE_FD;
     }
     else if (bytessent < sizeof(value))
     {
         fprintf(stderr, "write failure");
+        exit(EXIT_FAILURE);
         goto CLOSE_FD;
     }
 
@@ -282,6 +286,18 @@ int handshake(int broadcastfd)
         goto CLOSE_SOCKFD;
     }
 
+    int keepalive = 1;
+    if (setsockopt(sockfd, SOL_SOCKET, SO_KEEPALIVE, &keepalive, sizeof(keepalive)) < 0)
+    {
+        perror("setsockopt");
+        goto CLOSE_SOCKFD;
+    }
+
+    int keepcnt = 5, keepidle = 5, keepintvl = 1;
+    setsockopt(sockfd, IPPROTO_TCP, TCP_KEEPCNT, &keepcnt, sizeof(int));
+    setsockopt(sockfd, IPPROTO_TCP, TCP_KEEPIDLE, &keepidle, sizeof(int));
+    setsockopt(sockfd, IPPROTO_TCP, TCP_KEEPINTVL, &keepintvl, sizeof(int));
+
     puts("Connecting...");
     from.sin_port = htons(PORT);
     if (connect(sockfd, (struct sockaddr *)&from, sizeof(from)) < 0)
@@ -309,7 +325,7 @@ int handshake(int broadcastfd)
 CLOSE_SOCKFD:
     close(sockfd);
 RETURN:
-    return sockfd;
+    return -1;
 }
 
 double f(double x)

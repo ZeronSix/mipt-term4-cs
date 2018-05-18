@@ -338,12 +338,14 @@ static void *thread_routine(void *data)
         {
             perror("read");
             close(serverfd);
+            exit(EXIT_FAILURE);
             continue;
         }
         else if (bytesread == 0)
         {
             puts("Lost connection!");
             close(serverfd);
+            exit(EXIT_FAILURE);
             continue;
         }
 
